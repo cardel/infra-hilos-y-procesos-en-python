@@ -6,6 +6,10 @@ Carlos Andrés Delgado Saavedra
 
 [![Pruebas](../../actions/workflows/pruebas.yml/badge.svg)](../../actions/workflows/pruebas.yml)
 
+Lo que cada parte necesita de las bibliotecas y herramientas está en
+[DOCUMENTACION.md](DOCUMENTACION.md), con ejemplos que corren y los enlaces
+a la documentación oficial.
+
 La misma tarea repartida de tres maneras: una tras otra, entre hilos y entre
 procesos, con dos tareas de naturaleza distinta, para ver que la respuesta a
 «qué conviene» depende de en qué se va el tiempo. Después, lo que pasa cuando
