@@ -1,11 +1,14 @@
 """Mide las tres formas de ejecución sobre una tarea de cálculo y una de espera."""
 import time
 
+from src.cola import con_cola
 from src.paralelo import con_hilos, con_procesos, en_secuencia
 from src.tareas import consulta_lenta, cuenta_primos
 
 CALCULO = [200000, 200000, 200000, 200000]
 ESPERA = [1, 1, 1, 1]
+# Ocho tareas de costo desigual: dos largas y seis cortas.
+DESIGUAL = [400000, 50000, 50000, 50000, 400000, 50000, 50000, 50000]
 
 
 def medir(nombre, ejecutor, funcion, argumentos):
@@ -24,3 +27,8 @@ if __name__ == "__main__":
     medir("secuencia", en_secuencia, consulta_lenta, ESPERA)
     medir("hilos", con_hilos, consulta_lenta, ESPERA)
     medir("procesos", con_procesos, consulta_lenta, ESPERA)
+
+    print("\nTareas desiguales por una cola: uno, dos y cuatro trabajadores")
+    medir("secuencia", en_secuencia, cuenta_primos, DESIGUAL)
+    for n in (1, 2, 4):
+        medir(f"cola x{n}", lambda f, a, n=n: con_cola(f, a, n), cuenta_primos, DESIGUAL)

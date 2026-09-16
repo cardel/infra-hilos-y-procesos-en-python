@@ -5,17 +5,28 @@ Escuela de Ingeniería de Sistemas y Computación, Universidad del Valle
 Carlos Andrés Delgado Saavedra
 
 La misma tarea repartida de tres maneras: una tras otra, entre hilos y entre
-procesos. Con dos tareas de naturaleza distinta, para ver que la respuesta a
-«qué conviene» depende de en qué se va el tiempo.
+procesos, con dos tareas de naturaleza distinta, para ver que la respuesta a
+«qué conviene» depende de en qué se va el tiempo. Después, lo que pasa cuando
+los hilos comparten una variable, lo que pasa cuando los procesos no comparten
+nada, y una cola para repartir trabajo entre procesos.
 
-## Las dos tareas
+| Parte | Archivo | Qué se resuelve |
+|---|---|---|
+| 1 | `src/paralelo.py` | La misma lista de tareas en secuencia, con hilos y con procesos |
+| 2 | `src/cuenta.py` | Cuatro hilos sobre el mismo saldo: la actualización perdida y el cerrojo |
+| 3 | `src/compartida.py` | Procesos que llenan un arreglo: la copia y la memoria compartida |
+| 4 | `src/cola.py` | Un grupo de procesos que toma tareas de una cola |
+
+## Parte 1: hilos y procesos
+
+### Las dos tareas
 
 En `src/tareas.py`, ya escritas:
 
 - `cuenta_primos(limite)` gasta procesador de principio a fin.
 - `consulta_lenta(segundos)` no gasta nada: espera.
 
-## Qué hay que implementar
+### Qué hay que implementar
 
 En `src/paralelo.py` están las tres formas de ejecutar una lista de tareas.
 `en_secuencia` ya está; faltan las otras dos:
@@ -28,22 +39,19 @@ resultados **en el mismo orden de los argumentos**. Ese detalle es parte de lo
 que se prueba: si se recogen los resultados a medida que van terminando, el
 orden se pierde.
 
-## Ejecutar
+### Ejecutar
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python -m pytest tests/ -v     # correctitud
-python -m scripts.medir        # tiempos
+python -m pytest tests/test_paralelo.py -v     # correctitud
+python -m scripts.medir                        # tiempos
 ```
 
-## Qué hay que entregar
-
-Además del código, `INFORME.md` con la tabla de tiempos llena y la explicación.
-Se espera que aparezcan dos observaciones y que estén sustentadas con los
-números medidos:
+En `INFORME.md` va la tabla de tiempos llena y la explicación. Se espera que
+aparezcan dos observaciones, sustentadas con los números medidos:
 
 1. En la tarea de cálculo, los hilos no mejoran a la ejecución secuencial, o
    mejoran muy poco. El bloqueo global del intérprete deja correr código de
@@ -52,9 +60,70 @@ números medidos:
    mientras el hilo espera. Ahí los procesos también sirven, pero cuestan más
    en memoria y en arranque.
 
+## Parte 2: la actualización perdida
+
+Cuatro hilos abonan cien mil veces cada uno sobre el mismo saldo, que arranca
+en cero. Aumentar un saldo son tres pasos: leerlo, sumarle uno y escribirlo.
+Entre el primero y el tercero el número leído vive dentro del hilo, y si otro
+hilo escribe en ese intervalo su escritura queda tapada.
+
+En `src/cuenta.py`, `abonar_sin_cerrojo` ya está y es la versión que pierde
+abonos. Falta `abonar_con_cerrojo`: los mismos abonos, con un
+`threading.Lock` que deje los tres pasos juntos.
+
+```bash
+python -m pytest tests/test_cuenta.py -v
+python -m scripts.carrera
+```
+
+El script baja el intervalo de conmutación del intérprete con
+`sys.setswitchinterval` para que los hilos se alternen mucho más seguido, y
+corre cinco veces cada versión. Sin cerrojo se pierde una fracción grande de
+los abonos y cada corrida pierde una cantidad distinta; con cerrojo, ninguna.
+Las pruebas comprueban las dos cosas.
+
+## Parte 3: los procesos no comparten memoria
+
+`llenar_lista` en `src/compartida.py` reparte el llenado de una lista entre
+varios procesos y devuelve la lista sin tocar: cada proceso hijo recibió una
+copia, la llenó, y la copia murió con él. Falta `llenar_compartido`, que hace
+el mismo reparto sobre un `multiprocessing.Array` de enteros de 64 bits y
+devuelve su contenido como lista. Cada proceso escribe posiciones distintas,
+así que no hace falta cerrojo.
+
+```bash
+python -m pytest tests/test_compartida.py -v
+```
+
+## Parte 4: un grupo de procesos con una cola
+
+`con_cola` en `src/cola.py` recibe una función, una lista de argumentos y un
+número de procesos trabajadores. El padre pone las tareas en una
+`multiprocessing.Queue` como pares `(índice, argumento)`; cada trabajador saca
+una, la resuelve y pone `(índice, resultado)` en otra cola; cuando saca el
+centinela, termina. Con el índice, el padre devuelve los resultados en el
+orden de los argumentos aunque lleguen desordenados.
+
+```bash
+python -m pytest tests/test_cola.py -v
+python -m scripts.medir
+```
+
+La última sección de `medir.py` corre ocho tareas de costo desigual, dos
+largas y seis cortas, con uno, dos y cuatro trabajadores. De dos a cuatro casi
+no se gana, y la razón va en el informe.
+
 ## Qué revisa el flujo de Actions
 
-Que las tres formas den el mismo resultado, que se respete el orden, que la
-medición corra y que `INFORME.md` no quede en blanco. Los tiempos que aparecen
-en el registro de la ejecución son de un servidor compartido; los que valen
-para el informe son los de su máquina.
+- Parte 1: que las tres formas den el mismo resultado y respeten el orden.
+- Parte 2: que sin cerrojo se pierdan abonos en al menos uno de diez
+  intentos, y que con cerrojo no se pierda ninguno en diez.
+- Parte 3: que la lista vuelva sin tocar y que el arreglo compartido vuelva
+  lleno.
+- Parte 4: que la cola devuelva lo mismo que la ejecución en secuencia, en
+  orden, con menos trabajadores que tareas, con más, y sin tareas.
+- Que `scripts.medir` corra y que `INFORME.md` tenga las tablas y las
+  explicaciones.
+
+Los tiempos que aparecen en el registro de la ejecución son de un servidor
+compartido; los que valen para el informe son los de su máquina.

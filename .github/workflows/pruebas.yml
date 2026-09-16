@@ -18,8 +18,20 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Las tres formas dan el mismo resultado
-        run: python -m pytest tests/ -v
+      - name: "Parte 1: las tres formas dan el mismo resultado y en orden"
+        run: python -m pytest tests/test_paralelo.py -v
+
+      - name: "Parte 2: sin cerrojo se pierden abonos y con cerrojo no"
+        run: python -m pytest tests/test_cuenta.py -v
+
+      - name: "Parte 2: cinco corridas de cada una"
+        run: python -m scripts.carrera
+
+      - name: "Parte 3: la memoria compartida sí se llena"
+        run: python -m pytest tests/test_compartida.py -v
+
+      - name: "Parte 4: la cola reparte y devuelve en orden"
+        run: python -m pytest tests/test_cola.py -v
 
       - name: Medir
         run: python -m scripts.medir
@@ -28,4 +40,4 @@ jobs:
         run: |
           test -f INFORME.md || { echo "Falta INFORME.md"; exit 1; }
           palabras=$(wc -w < INFORME.md)
-          test "$palabras" -ge 120 || { echo "INFORME.md tiene $palabras palabras: falta la tabla de tiempos o la explicación"; exit 1; }
+          test "$palabras" -ge 300 || { echo "INFORME.md tiene $palabras palabras: faltan tablas o explicaciones"; exit 1; }
