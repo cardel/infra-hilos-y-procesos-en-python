@@ -5,39 +5,220 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Un push nuevo cancela el run anterior de la misma rama.
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  pruebas:
+  parte-1:
+    name: "Parte 1: hilos y procesos"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: pip install -q -r requirements.txt
 
-      - name: "Parte 1: las tres formas dan el mismo resultado y en orden"
-        run: python -m pytest tests/test_paralelo.py -v
-
-      - name: "Parte 2: sin cerrojo se pierden abonos y con cerrojo no"
-        run: python -m pytest tests/test_cuenta.py -v
-
-      - name: "Parte 2: cinco corridas de cada una"
-        run: python -m scripts.carrera
-
-      - name: "Parte 3: la memoria compartida sí se llena"
-        run: python -m pytest tests/test_compartida.py -v
-
-      - name: "Parte 4: la cola reparte y devuelve en orden"
-        run: python -m pytest tests/test_cola.py -v
-
-      - name: Medir
-        run: python -m scripts.medir
-
-      - name: El informe está diligenciado
+      - name: Compilar, ejecutar y verificar
         run: |
-          test -f INFORME.md || { echo "Falta INFORME.md"; exit 1; }
+          correr() {
+            python -m pytest tests/test_paralelo.py -v 2>&1 | tee pytest_paralelo.log && python -m scripts.medir | tee medir.txt
+          }
+          verificar() {
+            nucleos="$nucleos" bash -eo pipefail <<'VERIFICAR'
+          grep -q "passed" pytest_paralelo.log && ! grep -q "failed" pytest_paralelo.log || { echo "las pruebas de paralelo no pasan"; exit 1; }
+          awk '
+            /^Tarea de calculo|^Tarea de cálculo/ { s = 1 } /^Tarea de espera/ { s = 2 } /^Tareas desiguales/ { s = 3 }
+            s == 1 && $1 == "secuencia" { c_sec = $2 }  s == 1 && $1 == "procesos" { c_pro = $2 }
+            s == 2 && $1 == "secuencia" { e_sec = $2 }  s == 2 && $1 == "hilos" { e_hil = $2 }
+            END {
+              if (c_sec == "" || c_pro == "" || e_sec == "" || e_hil == "") { print "faltan lineas en la salida de medir.py"; exit 1 }
+              printf "calculo: secuencia %s ms, procesos %s ms; espera: secuencia %s ms, hilos %s ms\n", c_sec, c_pro, e_sec, e_hil
+              if (c_pro + 0 > 0.7 * c_sec) { print "con procesos la tarea de calculo no bajo del 70 % del tiempo secuencial: revise que con_procesos reparta de verdad"; exit 1 }
+              if (e_hil + 0 > 0.5 * e_sec) { print "con hilos la tarea de espera no bajo a la mitad: revise que con_hilos lance los hilos a la vez"; exit 1 }
+            }
+          ' medir.txt
+          VERIFICAR
+          }
+          correr
+          if ! salida=$(verificar 2>&1); then
+            echo "$salida"; echo "::notice title=Parte 1::segunda corrida antes de marcar rojo"
+            correr
+            salida=$(verificar 2>&1) || { echo "$salida"; echo "::error file=src/paralelo.py,title=Parte 1::$(echo "$salida" | tail -1)"; exit 1; }
+          fi
+          echo "$salida"
+
+      - name: Resumen
+        if: always()
+        run: |
+          { echo "### Parte 1: hilos y procesos"; echo '```'; grep -E 'passed|failed' pytest_paralelo.log || true; cat medir.txt 2>/dev/null || echo "sin salida de medir.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  parte-2:
+    name: "Parte 2: la actualización perdida"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Compilar, ejecutar y verificar
+        run: |
+          correr() {
+            python -m pytest tests/test_cuenta.py -v 2>&1 | tee pytest_cuenta.log && python -m scripts.carrera | tee carrera.txt
+          }
+          verificar() {
+            nucleos="$nucleos" bash -eo pipefail <<'VERIFICAR'
+          grep -q "passed" pytest_cuenta.log && ! grep -q "failed" pytest_cuenta.log || { echo "las pruebas de cuenta no pasan"; exit 1; }
+          echo "sin cerrojo se pierden abonos y con cerrojo no"
+          VERIFICAR
+          }
+          correr
+          salida=$(verificar 2>&1) || { echo "$salida"; echo "::error file=src/cuenta.py,title=Parte 2::$(echo "$salida" | tail -1)"; exit 1; }
+          echo "$salida"
+
+      - name: Resumen
+        if: always()
+        run: |
+          { echo "### Parte 2: la actualización perdida"; echo '```'; grep -E 'passed|failed' pytest_cuenta.log || true; cat carrera.txt 2>/dev/null || echo "sin salida de carrera.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  parte-3:
+    name: "Parte 3: memoria compartida"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Compilar, ejecutar y verificar
+        run: |
+          correr() {
+            python -m pytest tests/test_compartida.py -v 2>&1 | tee pytest_compartida.log
+          }
+          verificar() {
+            nucleos="$nucleos" bash -eo pipefail <<'VERIFICAR'
+          grep -q "passed" pytest_compartida.log && ! grep -q "failed" pytest_compartida.log || { echo "las pruebas de compartida no pasan"; exit 1; }
+          echo "el arreglo compartido vuelve lleno"
+          VERIFICAR
+          }
+          correr
+          salida=$(verificar 2>&1) || { echo "$salida"; echo "::error file=src/compartida.py,title=Parte 3::$(echo "$salida" | tail -1)"; exit 1; }
+          echo "$salida"
+
+      - name: Resumen
+        if: always()
+        run: |
+          { echo "### Parte 3: memoria compartida"; echo '```'; grep -E 'passed|failed' pytest_compartida.log || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  parte-4:
+    name: "Parte 4: la cola"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Compilar, ejecutar y verificar
+        run: |
+          correr() {
+            python -m pytest tests/test_cola.py -v 2>&1 | tee pytest_cola.log && python -m scripts.medir | tee medir_cola.txt
+          }
+          verificar() {
+            nucleos="$nucleos" bash -eo pipefail <<'VERIFICAR'
+          grep -q "passed" pytest_cola.log && ! grep -q "failed" pytest_cola.log || { echo "las pruebas de cola no pasan"; exit 1; }
+          awk '
+            /^Tareas desiguales/ { s = 3 }
+            s == 3 && $1 == "secuencia" { sec = $2 }  s == 3 && $1 == "cola" && $2 == "x4" { cuatro = $3 }
+            END {
+              if (sec == "" || cuatro == "") { print "faltan lineas de la cola en la salida de medir.py"; exit 1 }
+              printf "desiguales: secuencia %s ms, cola con 4 trabajadores %s ms\n", sec, cuatro
+              if (cuatro + 0 > 0.7 * sec) { print "con cuatro trabajadores la cola no bajo del 70 % del tiempo secuencial: revise que los trabajadores corran a la vez"; exit 1 }
+            }
+          ' medir_cola.txt
+          VERIFICAR
+          }
+          correr
+          if ! salida=$(verificar 2>&1); then
+            echo "$salida"; echo "::notice title=Parte 4::segunda corrida antes de marcar rojo"
+            correr
+            salida=$(verificar 2>&1) || { echo "$salida"; echo "::error file=src/cola.py,title=Parte 4::$(echo "$salida" | tail -1)"; exit 1; }
+          fi
+          echo "$salida"
+
+      - name: Resumen
+        if: always()
+        run: |
+          { echo "### Parte 4: la cola"; echo '```'; grep -E 'passed|failed' pytest_cola.log || true; grep -A4 '^Tareas desiguales' medir_cola.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  informe:
+    name: "Informe escrito"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Compilar, ejecutar y verificar
+        run: |
+          correr() {
+            wc -w INFORME.md | tee informe.txt
+          }
+          verificar() {
+            nucleos="$nucleos" bash -eo pipefail <<'VERIFICAR'
           palabras=$(wc -w < INFORME.md)
           test "$palabras" -ge 300 || { echo "INFORME.md tiene $palabras palabras: faltan tablas o explicaciones"; exit 1; }
+          VERIFICAR
+          }
+          correr
+          salida=$(verificar 2>&1) || { echo "$salida"; echo "::error file=INFORME.md,title=Informe escrito::$(echo "$salida" | tail -1)"; exit 1; }
+          echo "$salida"
+
+      - name: Resumen
+        if: always()
+        run: |
+          { echo "### Informe escrito"; echo '```'; cat informe.txt 2>/dev/null || echo "sin salida de informe.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  resumen:
+    name: Resumen
+    needs: [parte-1, parte-2, parte-3, parte-4, informe]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Estado de las partes
+        run: |
+          estado() { case "$1" in success) echo "en verde";; failure) echo "en rojo";; *) echo "$1";; esac; }
+          verdes=0
+          for r in "${{ needs.parte-1.result }}" "${{ needs.parte-2.result }}" "${{ needs.parte-3.result }}" "${{ needs.parte-4.result }}" "${{ needs.informe.result }}"; do
+            test "$r" = success && verdes=$((verdes + 1))
+          done
+          {
+            echo "## ${verdes} de 5 partes en verde"
+            echo
+            echo "| Parte | Estado |"
+            echo "|---|---|"
+            echo "| Parte 1: hilos y procesos | $(estado "${{ needs.parte-1.result }}") |"
+            echo "| Parte 2: la actualización perdida | $(estado "${{ needs.parte-2.result }}") |"
+            echo "| Parte 3: memoria compartida | $(estado "${{ needs.parte-3.result }}") |"
+            echo "| Parte 4: la cola | $(estado "${{ needs.parte-4.result }}") |"
+            echo "| Informe escrito | $(estado "${{ needs.informe.result }}") |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "${verdes} de 5 partes en verde"

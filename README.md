@@ -4,6 +4,8 @@ Infraestructuras Paralelas y Distribuidas
 Escuela de Ingeniería de Sistemas y Computación, Universidad del Valle
 Carlos Andrés Delgado Saavedra
 
+[![Pruebas](../../actions/workflows/pruebas.yml/badge.svg)](../../actions/workflows/pruebas.yml)
+
 La misma tarea repartida de tres maneras: una tras otra, entre hilos y entre
 procesos, con dos tareas de naturaleza distinta, para ver que la respuesta a
 «qué conviene» depende de en qué se va el tiempo. Después, lo que pasa cuando
@@ -115,15 +117,27 @@ no se gana, y la razón va en el informe.
 
 ## Qué revisa el flujo de Actions
 
-- Parte 1: que las tres formas den el mismo resultado y respeten el orden.
+- Parte 1: que las tres formas den el mismo resultado y respeten el orden;
+  que con procesos la tarea de cálculo baje del 70 % del tiempo secuencial y
+  que con hilos la de espera baje a la mitad.
 - Parte 2: que sin cerrojo se pierdan abonos en al menos uno de diez
   intentos, y que con cerrojo no se pierda ninguno en diez.
 - Parte 3: que la lista vuelva sin tocar y que el arreglo compartido vuelva
   lleno.
 - Parte 4: que la cola devuelva lo mismo que la ejecución en secuencia, en
-  orden, con menos trabajadores que tareas, con más, y sin tareas.
-- Que `scripts.medir` corra y que `INFORME.md` tenga las tablas y las
-  explicaciones.
+  orden, con menos trabajadores que tareas, con más, y sin tareas; y que con
+  cuatro trabajadores las tareas desiguales bajen del 70 % del tiempo
+  secuencial.
+- Que `INFORME.md` tenga las tablas y las explicaciones.
+
+Cada parte es un job aparte: la lista de verificaciones del commit dice cuál
+quedó en verde y cuál no, y la pestaña del run trae un resumen con la salida
+de cada programa y el conteo de partes en verde. Cuando una verificación de
+tiempos falla, el flujo repite la corrida una vez antes de marcar rojo, y el
+error queda anotado sobre el archivo de esa parte. Un push nuevo cancela el
+run anterior.
 
 Los tiempos que aparecen en el registro de la ejecución son de un servidor
-compartido; los que valen para el informe son los de su máquina.
+compartido; los que valen para el informe son los de su máquina. Las pruebas
+de `pytest` se cortan a los dos minutos: una cola sin centinelas se queda
+esperando para siempre, y así el flujo no se queda con ella.
