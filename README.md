@@ -23,6 +23,25 @@ nada, y una cola para repartir trabajo entre procesos.
 | 3 | `src/compartida.py` | Procesos que llenan un arreglo: la copia y la memoria compartida |
 | 4 | `src/cola.py` | Un grupo de procesos que toma tareas de una cola |
 
+## Requisitos
+
+| Qué | Linux (Debian/Ubuntu) | macOS | Windows |
+|---|---|---|---|
+| Python 3.10 o más reciente, con `venv` y `pip` | `sudo apt install python3 python3-venv python3-pip` | `brew install python` o el instalador de python.org | instalador de python.org, marcando *Add python.exe to PATH* |
+| `pytest` y `pytest-timeout` | `pip install -r requirements.txt` dentro del entorno virtual | igual | igual |
+
+El entorno virtual se activa distinto según el sistema: `source
+.venv/bin/activate` en Linux y macOS, `.venv\Scripts\activate` en Windows.
+En Windows y en macOS los procesos nuevos arrancan con `spawn` y no con
+`fork`: el código que lanza procesos va debajo de `if __name__ ==
+"__main__":`, y las funciones que reciben los trabajadores tienen que
+estar en un módulo importable, no definidas dentro de otra función. Los
+tiempos de hilos y procesos cambian entre sistemas; los que van en el
+informe son los de su máquina.
+
+Cómo dejar cada sistema listo, paso a paso, está en
+[DOCUMENTACION.md](DOCUMENTACION.md), al final.
+
 ## Parte 1: hilos y procesos
 
 ### Las dos tareas
