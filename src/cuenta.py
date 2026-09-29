@@ -2,6 +2,7 @@
 pasos: leerlo, sumarle uno y escribirlo. Entre el primero y el tercero el
 número leído vive dentro del hilo, y si otro hilo escribe en ese intervalo su
 escritura queda tapada: es una actualización perdida."""
+
 import threading
 
 
@@ -27,7 +28,10 @@ def abonar_sin_cerrojo(cuenta, veces, arranque):
 def abonar_con_cerrojo(cuenta, veces, arranque, cerrojo):
     """TODO: los mismos abonos, sin perder ninguno. Los tres pasos de cada
     abono tienen que ocurrir sin que otro hilo se meta en la mitad."""
-    raise NotImplementedError
+    arranque.wait()  # todos los hilos salen juntos
+    with cerrojo:
+        for _ in range(veces):
+            cuenta.guardar(cuenta.consultar() + 1)
 
 
 def abonar_entre_hilos(hilos, veces, cerrojo=None):

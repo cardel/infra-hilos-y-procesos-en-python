@@ -4,6 +4,9 @@ Cada función recibe la función a ejecutar y la lista de argumentos, y devuelve
 la lista de resultados en el mismo orden de los argumentos.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Pool
+
 
 def en_secuencia(funcion, argumentos):
     """Ejecuta las tareas una tras otra. Es el punto de comparación."""
@@ -16,7 +19,9 @@ def con_hilos(funcion, argumentos):
     Sirven threading.Thread o concurrent.futures.ThreadPoolExecutor. El orden
     de los resultados tiene que corresponder al de los argumentos.
     """
-    raise NotImplementedError
+    with ThreadPoolExecutor(max_workers=len(argumentos)) as executor:
+        resultados = list(executor.map(funcion, argumentos))
+    return resultados
 
 
 def con_procesos(funcion, argumentos):
@@ -24,4 +29,7 @@ def con_procesos(funcion, argumentos):
 
     Sirven multiprocessing.Pool o concurrent.futures.ProcessPoolExecutor.
     """
-    raise NotImplementedError
+    with Pool(processes=len(argumentos)) as p:
+        resultados = p.map(funcion, argumentos)
+
+    return resultados

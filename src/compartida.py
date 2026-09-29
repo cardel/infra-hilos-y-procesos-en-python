@@ -1,6 +1,7 @@
 """Los procesos no comparten memoria. Una lista que un proceso hijo modifica
 es una copia: el padre no ve el cambio. Para que lo vea, la memoria tiene que
 reservarse compartida desde el principio."""
+
 import multiprocessing
 
 
@@ -18,7 +19,9 @@ def llenar_lista(n, procesos):
     hijos = []
     for p in range(procesos):
         ini, fin = p * paso, n if p == procesos - 1 else (p + 1) * paso
-        hijos.append(multiprocessing.Process(target=_llenar_tramo_lista, args=(lista, ini, fin)))
+        hijos.append(
+            multiprocessing.Process(target=_llenar_tramo_lista, args=(lista, ini, fin))
+        )
     for h in hijos:
         h.start()
     for h in hijos:
@@ -31,4 +34,16 @@ def llenar_compartido(n, procesos):
     multiprocessing.Array de enteros de 64 bits ('q'), repartir los tramos
     entre los procesos, y devolver el contenido como lista de Python.
     Cada proceso escribe posiciones distintas, así que no hace falta cerrojo."""
-    raise NotImplementedError
+    lista = multiprocessing.Array("i", n)
+    paso = n // procesos
+    hijos = []
+    for p in range(procesos):
+        ini, fin = p * paso, n if p == procesos - 1 else (p + 1) * paso
+        hijos.append(
+            multiprocessing.Process(target=_llenar_tramo_lista, args=(lista, ini, fin))
+        )
+    for h in hijos:
+        h.start()
+    for h in hijos:
+        h.join()
+    return list(lista)
